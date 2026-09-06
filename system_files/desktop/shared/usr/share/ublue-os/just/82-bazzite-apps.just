@@ -254,6 +254,7 @@ install-jetbrains-toolbox:
     if ! command -v brew >/dev/null 2>&1 && [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
         eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     fi
+    brew trust ublue-os/tap 
     brew tap ublue-os/tap
     brew install --cask jetbrains-toolbox-linux
     if ! command -v jetbrains-toolbox >/dev/null 2>&1; then
@@ -352,6 +353,7 @@ asus ACTION="":
         done
 
         if [ ${#brew_packages[@]} -gt 0 ]; then
+            brew trust ublue-os/tap 
             brew tap ublue-os/tap
             echo "Installing: ${brew_packages[*]}"
             brew install --cask "${brew_packages[@]}"
@@ -573,7 +575,15 @@ install-openrazer ACTION="":
         else
             echo "Not Selecting GUI Frontend"
         fi
-        sudo curl -Lo /etc/yum.repos.d/hardware:razer.repo https://openrazer.github.io/hardware:razer.repo
+
+        sudo rm -f /etc/yum.repos.d/hardware:razer.repo
+        repo_path="/etc/yum.repos.d/terra.repo"
+        if ( ! grep -q "enabled=0" "$repo_path" ); then  # if not matches found
+            echo 'Terra Repository is already enabled, skipping.'
+        else
+            echo 'Enabling Terra Repository.'
+            sudo sed -i 's@enabled=0@enabled=1@g' "$repo_path"
+        fi
         rpm-ostree install -y openrazer-daemon
         if ! grep -q "plugdev" /etc/group; then
             sudo bash -c 'grep "plugdev" /lib/group >> /etc/group'
@@ -977,7 +987,7 @@ opentabletdriver ACTION="":
         mkdir -p $HOME/.config/OpenTabletDriver && \
         flatpak override --user --filesystem=xdg-config/OpenTabletDriver net.opentabletdriver.OpenTabletDriver && \
         mkdir -p $HOME/.config/systemd/user && \
-        curl -s https://raw.githubusercontent.com/flathub/net.opentabletdriver.OpenTabletDriver/refs/heads/master/scripts/opentabletdriver.service > $HOME/.config/systemd/user/opentabletdriver.service  && \
+        curl -s https://raw.githubusercontent.com/flathub/net.opentabletdriver.OpenTabletDriver/48e27fe5fc2a26d3918880d292bb96dc66edf50b/scripts/opentabletdriver.service > $HOME/.config/systemd/user/opentabletdriver.service  && \
         systemctl --user daemon-reload && \
         systemctl enable --user --now opentabletdriver.service && \
         rpm-ostree kargs --append-if-missing=modprobe.blacklist=hid_uclogic --append-if-missing=modprobe.blacklist=wacom

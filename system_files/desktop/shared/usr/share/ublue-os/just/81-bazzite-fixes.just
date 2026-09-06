@@ -203,91 +203,6 @@ wol ACTION="":
       echo "No changes were made."
     fi
 
-alias toggle-iwd := iwd
-
-# Manage IWD as a replacement for wpa_supplicant. Options: status | enable | disable
-[group("network")]
-iwd ACTION="":
-    #!/usr/bin/bash
-    get_status_token() {
-      if [[ -f "/etc/NetworkManager/conf.d/iwd.conf" ]]; then
-        echo "enable"
-      else
-        echo "disable"
-      fi
-    }
-
-    OPTION={{ ACTION }}
-    if [[ "${OPTION,,}" == "status" ]]; then
-      get_status_token
-      exit 0
-    fi
-    # Explain the purpose of the script
-    echo -e "This script manages enabling or disabling iwd as a replacement for wpa_supplicant for Wi-Fi networking."
-    echo -e "Enabling this can improve throughput, mesh networking, and reduce latency increases when scanning for networks"
-    echo -e "Disabling this can improve functionality on some wifi adapters"
-    echo -e ""
-    echo -e "WARNING: Changing this will remove all saved wifi networks"
-    get_current_status() {
-      if [[ "$(get_status_token)" == "enable" ]]; then
-        echo "Enabled"
-      else
-        echo "Disabled"
-      fi
-    }
-    remove_saved_networks() {
-      nmcli -t -f NAME connection show | while read -r line; do sudo nmcli connection delete "$line"; done
-    }
-    enable_iwd() {
-      sudo rm -f "/etc/NetworkManager/conf.d/iwd.conf"
-      printf "[device]\nwifi.backend=iwd\nwifi.iwd.autoconnect=yes" | sudo tee /etc/NetworkManager/conf.d/iwd.conf > /dev/null
-      sudo systemctl mask wpa_supplicant.service
-      sudo systemctl unmask iwd.service
-      remove_saved_networks
-      echo -e "iwd enabled. Reboot required to apply changes."
-    }
-    disable_iwd() {
-      sudo mkdir -p "/etc/NetworkManager/conf.d/"
-      sudo rm -f "/etc/NetworkManager/conf.d/iwd.conf"
-      sudo systemctl mask iwd.service
-      sudo systemctl unmask wpa_supplicant.service
-      remove_saved_networks
-      echo -e "iwd disabled. Reboot required to apply changes."
-    }
-    # Show status
-    current_status=$(get_current_status)
-    echo -e "\nCurrent iwd status: $current_status\n"
-
-    if [[ "${OPTION,,}" == "enable" ]]; then
-      enable_iwd
-      exit 0
-    fi
-
-    if [[ "${OPTION,,}" == "disable" ]]; then
-      disable_iwd
-      exit 0
-    fi
-
-    if [ -z "$OPTION" ]; then
-      CHOICE=$(ugum choose "Enable iwd" "Disable iwd" "Exit without changes")
-    else
-      exit 0
-    fi
-    case "$CHOICE" in
-      "Enable iwd")
-        enable_iwd
-        ;;
-      "Disable iwd")
-        disable_iwd
-        ;;
-      "Exit without changes")
-        echo "No changes made."
-        ;;
-      *)
-        echo "Invalid choice. Exiting without changes."
-        ;;
-    esac
-
 # enable or disable a fix for 7th and 8th generation Intel chips not being able to sleep
 [group("hardware")]
 toggle-i915-sleep-fix ACTION="":
@@ -450,7 +365,7 @@ toggle-i915-sleep-fix ACTION="":
 
 # Toggle GPP0 wakeup fix to prevent unwanted system wake-ups, primarily affects Gigabyte motherboards.
 [group("hardware")]
-_toggle-gigabyte-wake-fix:
+toggle-gigabyte-wake-fix:
     #!/usr/bin/bash
     source /usr/lib/ujust/ujust.sh
     SERVICE_FILE="/etc/systemd/system/biosWakeupWorkaround.service"
@@ -683,6 +598,7 @@ cec-mode ACTION="":
       sudo -v || exit 1
       echo "Switching HDMI-CEC to dGPU mode..."
       systemctl --user disable --now "${NATIVE_UNITS[@]}" >/dev/null 2>&1 || true
+      systemctl --user mask "${NATIVE_UNITS[@]}" >/dev/null 2>&1 || true
       sudo systemctl stop 'pulse8-cec-inputattach@*.service' 'rainshadow-cec-inputattach@*.service' >/dev/null 2>&1 || true
       sudo systemctl mask "${INPUTATTACH_UNITS[@]}" >/dev/null 2>&1 || true
       remove_cecd_native_config
@@ -717,8 +633,8 @@ cec-mode ACTION="":
       sudo udevadm control --reload-rules >/dev/null 2>&1 || true
       sudo udevadm trigger --subsystem-match=tty --action=add >/dev/null 2>&1 || true
       systemctl --user daemon-reload
-      systemctl --user enable steamos-manager-configure-cecd.service >/dev/null 2>&1 || true
-      systemctl --user enable cecd.service
+      systemctl --user unmask "${NATIVE_UNITS[@]}" >/dev/null 2>&1 || true
+      systemctl --user enable "${NATIVE_UNITS[@]}" >/dev/null 2>&1 || true
       systemctl --user start --no-block cecd.service
       timeout 15 steamosctl set-hdmi-cec-state control-and-wake >/dev/null 2>&1 || true
       echo -e "HDMI-CEC is now using ${green}${bold}Native mode${normal}."
